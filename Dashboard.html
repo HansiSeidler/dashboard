@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lebensmittel Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    h1 { margin-bottom: 1rem; }
+    canvas { max-width: 600px; }
+  </style>
+</head>
+<body>
+
+<h1>📊 Lebensmittel – Kosten</h1>
+
+<canvas id="chart"></canvas>
+
+<script>
+  const SUPABASE_URL = "https://rynahngmkossspauuuzf.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_RABcAIZj67OoVSa53tGn_g_iklm-iCO";
+
+  // 👇 WICHTIG: anderer Variablenname + window.supabase
+  const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
+
+  async function loadData() {
+    const { data, error } = await supabaseClient
+      .from("food_costs")
+      .select("food_name, total_amount");
+
+    console.log("DATA:", data);
+    console.log("ERROR:", error);
+
+    if (error) {
+      alert("Fehler beim Laden der Daten");
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert("Keine Daten in food_costs");
+      return;
+    }
+
+    const labels = data.map(d => d.food_name);
+    const values = data.map(d => d.total_amount);
+
+    new Chart(document.getElementById("chart"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          label: "Kosten (€)",
+          data: values
+        }]
+      }
+    });
+  }
+
+  loadData();
+</script>
+
