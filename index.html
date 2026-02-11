@@ -3,34 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <title>Lebensmittel Dashboard</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body { font-family: sans-serif; padding: 2rem; }
     h1 { margin-bottom: 1rem; }
-    canvas { max-width: 600px; }
+
+    section {
+      margin-bottom: 2rem;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      max-width: 600px;
+    }
+
+    input, select, button {
+      padding: 0.5rem;
+      margin-right: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    canvas { max-width: 700px; margin-top: 2rem; }
   </style>
 </head>
+
 <body>
 
 <h1>📊 Lebensmittel – Kosten</h1>
 
+<!-- ➕ Einkauf -->
+<section>
+  <h2>➕ Einkauf hinzufügen</h2>
+  <select id="purchaseFood"></select>
+  <input type="number" id="purchaseQuantity" placeholder="Menge" step="0.01" />
+  <input type="number" id="purchasePrice" placeholder="Preis pro Einheit (€)" step="0.01" />
+  <button onclick="addPurchase()">Speichern</button>
+</section>
+
+<!-- ➖ Verbrauch -->
+<section>
+  <h2>➖ Verbrauch hinzufügen</h2>
+  <select id="consumeFood"></select>
+  <input type="number" id="consumeQuantity" placeholder="Menge" step="0.01" />
+  <button onclick="addConsumption()">Speichern</button>
+</section>
+
 <canvas id="chart"></canvas>
 
 <script>
-  // 🔑 HIER DEINE DATEN EINTRAGEN
   const SUPABASE_URL = "https://rynahngmkossspauuuzf.supabase.co";
   const SUPABASE_KEY = "sb_publishable_RABcAIZj67OoVSa53tGn_g_iklm-iCO";
 
-  const supabase = supabase.createClient(
+  const supabaseClient = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
   );
 
+  let chartInstance = null;
+
+  // 🔹 Lebensmittel laden
+  async function loadFoods() {
+    const { data, error } = await supabaseClient
+      .from("foods")
+      .select("id, name")
+      .order("name");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const purchaseSelect = document.getElementById("purchaseFood");
+    const consumeSelect = document.getElementById("consumeFood");
+
+    purchaseSelect.innerHTML = "";
+    consumeSelect.innerHTML = "";
+
+    data.forEach(food => {
+      const option1 = document.createElement("option");
+      option1.value = food.id;
+      option1.textContent = food.name;
+
+      const option2 = option1.cloneNode(true);
+
+      purchaseSelect.appendChild(option1);
+      consumeSelect.appendChild(option2);
+    });
+  }
+
+  // 🔹 Chart laden
   async function loadData() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("food_costs")
-      .select("food_name, total_amount");
+      .select("food_name, total_amount")
+      .order("food_name");
 
     if (error) {
       console.error(error);
@@ -41,7 +109,11 @@
     const labels = data.map(d => d.food_name);
     const values = data.map(d => d.total_amount);
 
-    new Chart(document.getElementById("chart"), {
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    chartInstance = new Chart(document.getElementById("chart"), {
       type: "bar",
       data: {
         labels,
@@ -53,10 +125,78 @@
     });
   }
 
+  // 🔹 Einkauf speichern
+  async function addPurchase() {
+    const foodId = document.getElementById("purchaseFood").value;
+    const quantity = document.getElementById("purchaseQuantity").value;
+    const price = document.getElementById("purchasePrice").value;
+
+    if (!quantity || !price) {
+      alert("Bitte Menge und Preis eingeben");
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from("purchases")
+      .insert([
+        {
+          food_id: Number(foodId),
+          quantity: Number(quantity),
+          price_per_unit: Number(price),
+          purchased_at: new Date()
+        }
+      ]);
+
+    if (error) {
+      alert("Fehler beim Speichern");
+      console.error(error);
+    } else {
+      alert("Einkauf gespeichert");
+
+      document.getElementById("purchaseQuantity").value = "";
+      document.getElementById("purchasePrice").value = "";
+
+      loadData();
+    }
+  }
+
+  // 🔹 Verbrauch speichern
+  async function addConsumption() {
+    const foodId = document.getElementById("consumeFood").value;
+    const quantity = document.getElementById("consumeQuantity").value;
+
+    if (!quantity) {
+      alert("Bitte Menge eingeben");
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from("consumptions")
+      .insert([
+        {
+          food_id: Number(foodId),
+          quantity: Number(quantity),
+          consumed_at: new Date()
+        }
+      ]);
+
+    if (error) {
+      alert("Fehler beim Speichern");
+      console.error(error);
+    } else {
+      alert("Verbrauch gespeichert");
+
+      document.getElementById("consumeQuantity").value = "";
+
+      loadData();
+    }
+  }
+
+  // 🔹 Initial laden
+  loadFoods();
   loadData();
 </script>
 
 </body>
 </html>
-
 
