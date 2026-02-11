@@ -18,30 +18,23 @@
 <canvas id="chart"></canvas>
 
 <script>
+  // 🔑 HIER DEINE DATEN EINTRAGEN
   const SUPABASE_URL = "https://rynahngmkossspauuuzf.supabase.co";
   const SUPABASE_KEY = "sb_publishable_RABcAIZj67OoVSa53tGn_g_iklm-iCO";
 
-  // 👇 WICHTIG: anderer Variablenname + window.supabase
-  const supabaseClient = window.supabase.createClient(
+  const supabase = supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
   );
 
   async function loadData() {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("food_costs")
       .select("food_name, total_amount");
 
-    console.log("DATA:", data);
-    console.log("ERROR:", error);
-
     if (error) {
+      console.error(error);
       alert("Fehler beim Laden der Daten");
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      alert("Keine Daten in food_costs");
       return;
     }
 
@@ -62,4 +55,8 @@
 
   loadData();
 </script>
+
+</body>
+</html>
+
 
