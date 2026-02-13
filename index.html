@@ -1,202 +1,291 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>Lebensmittel Dashboard</title>
+<meta charset="UTF-8" />
+<title>Lebensmittel – Verwaltung</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    h1 { margin-bottom: 1rem; }
-
-    section {
-      margin-bottom: 2rem;
-      padding: 1rem;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      max-width: 600px;
-    }
-
-    input, select, button {
-      padding: 0.5rem;
-      margin-right: 0.5rem;
-      margin-top: 0.5rem;
-    }
-
-    canvas { max-width: 700px; margin-top: 2rem; }
-  </style>
+<style>
+body { font-family: sans-serif; padding: 2rem; }
+section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  max-width: 750px;
+}
+input, select, button {
+  padding: 0.5rem;
+  margin: 0.5rem 0.5rem 0 0;
+}
+canvas { max-width: 750px; margin-top: 2rem; }
+</style>
 </head>
 
 <body>
 
-<h1>📊 Lebensmittel – Kosten</h1>
+<h1>📊 Lebensmittel – Verwaltung</h1>
 
-<!-- ➕ Einkauf -->
+<!-- 🆕 FOOD -->
 <section>
-  <h2>➕ Einkauf hinzufügen</h2>
-  <select id="purchaseFood"></select>
-  <input type="number" id="purchaseQuantity" placeholder="Menge" step="0.01" />
-  <input type="number" id="purchasePrice" placeholder="Preis pro Einheit (€)" step="0.01" />
-  <button onclick="addPurchase()">Speichern</button>
+<h2>➕ Neues Lebensmittel hinzufügen</h2>
+
+<input id="foodName" placeholder="Name" />
+<input type="number" id="foodAmount" placeholder="Menge pro Einheit" />
+<input id="foodUnit" placeholder="Einheit (z.B. g, ml)" />
+
+<select id="foodCategory"></select>
+<select id="foodShop"></select>
+
+<button onclick="addFood()">Speichern</button>
 </section>
 
-<!-- ➖ Verbrauch -->
+<!-- 🛒 PURCHASE -->
 <section>
-  <h2>➖ Verbrauch hinzufügen</h2>
-  <select id="consumeFood"></select>
-  <input type="number" id="consumeQuantity" placeholder="Menge" step="0.01" />
-  <button onclick="addConsumption()">Speichern</button>
+<h2>🛒 Einkauf hinzufügen</h2>
+
+<select id="purchaseFood"></select>
+<input type="number" id="purchaseQuantity" placeholder="Menge" step="0.01" />
+<input type="number" id="purchasePrice" placeholder="Preis pro Einheit (€)" step="0.01" />
+<input type="date" id="purchaseDate" />
+<label>
+<input type="checkbox" id="selfPaid" checked />
+Selbst bezahlt
+</label>
+
+<button onclick="addPurchase()">Speichern</button>
+</section>
+
+<!-- ➖ CONSUMPTION -->
+<section>
+<h2>➖ Verbrauch hinzufügen</h2>
+
+<select id="consumeFood"></select>
+<input type="number" id="consumeQuantity" placeholder="Menge" step="0.01" />
+<button onclick="addConsumption()">Speichern</button>
 </section>
 
 <canvas id="chart"></canvas>
 
 <script>
-  const SUPABASE_URL = "https://rynahngmkossspauuuzf.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_RABcAIZj67OoVSa53tGn_g_iklm-iCO";
+const SUPABASE_URL = "https://rynahngmkossspauuuzf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_RABcAIZj67OoVSa53tGn_g_iklm-iCO";
 
-  const supabaseClient = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
-  );
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
-  let chartInstance = null;
+let chartInstance = null;
 
-  // 🔹 Lebensmittel laden
-  async function loadFoods() {
-    const { data, error } = await supabaseClient
-      .from("foods")
-      .select("id, name")
-      .order("name");
+/* =========================
+   LOAD FUNCTIONS
+========================= */
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+async function loadCategories() {
+  const { data, error } = await supabaseClient
+    .from("category")
+    .select("id, category")
+    .order("category");
 
-    const purchaseSelect = document.getElementById("purchaseFood");
-    const consumeSelect = document.getElementById("consumeFood");
-
-    purchaseSelect.innerHTML = "";
-    consumeSelect.innerHTML = "";
-
-    data.forEach(food => {
-      const option1 = document.createElement("option");
-      option1.value = food.id;
-      option1.textContent = food.name;
-
-      const option2 = option1.cloneNode(true);
-
-      purchaseSelect.appendChild(option1);
-      consumeSelect.appendChild(option2);
-    });
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
   }
 
-  // 🔹 Chart laden
-  async function loadData() {
-    const { data, error } = await supabaseClient
-      .from("food_costs")
-      .select("food_name, total_amount")
-      .order("food_name");
+  if (!data) return;
 
-    if (error) {
-      console.error(error);
-      alert("Fehler beim Laden der Daten");
-      return;
-    }
+  const select = document.getElementById("foodCategory");
+  select.innerHTML = "";
 
-    const labels = data.map(d => d.food_name);
-    const values = data.map(d => d.total_amount);
+  data.forEach(cat => {
+    const option = document.createElement("option");
+    option.value = cat.id;
+    option.textContent = cat.category;
+    select.appendChild(option);
+  });
+}
 
-    if (chartInstance) {
-      chartInstance.destroy();
-    }
+async function loadShops() {
+  const { data, error } = await supabaseClient
+    .from("shops")
+    .select("id, shop")
+    .order("shop");
 
-    chartInstance = new Chart(document.getElementById("chart"), {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{
-          label: "Kosten (€)",
-          data: values
-        }]
-      }
-    });
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
   }
 
-  // 🔹 Einkauf speichern
-  async function addPurchase() {
-    const foodId = document.getElementById("purchaseFood").value;
-    const quantity = document.getElementById("purchaseQuantity").value;
-    const price = document.getElementById("purchasePrice").value;
+  if (!data) return;
 
-    if (!quantity || !price) {
-      alert("Bitte Menge und Preis eingeben");
-      return;
-    }
+  const select = document.getElementById("foodShop");
+  select.innerHTML = "";
 
-    const { error } = await supabaseClient
-      .from("purchases")
-      .insert([
-        {
-          food_id: Number(foodId),
-          quantity: Number(quantity),
-          price_per_unit: Number(price),
-          purchased_at: new Date()
-        }
-      ]);
+  data.forEach(shop => {
+    const option = document.createElement("option");
+    option.value = shop.id;
+    option.textContent = shop.shop;
+    select.appendChild(option);
+  });
+}
 
-    if (error) {
-      alert("Fehler beim Speichern");
-      console.error(error);
-    } else {
-      alert("Einkauf gespeichert");
+async function loadFoods() {
+  const { data, error } = await supabaseClient
+    .from("foods")
+    .select("id, name")
+    .order("name");
 
-      document.getElementById("purchaseQuantity").value = "";
-      document.getElementById("purchasePrice").value = "";
-
-      loadData();
-    }
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    return;
   }
 
-  // 🔹 Verbrauch speichern
-  async function addConsumption() {
-    const foodId = document.getElementById("consumeFood").value;
-    const quantity = document.getElementById("consumeQuantity").value;
+  if (!data) return;
 
-    if (!quantity) {
-      alert("Bitte Menge eingeben");
-      return;
-    }
+  const purchaseSelect = document.getElementById("purchaseFood");
+  const consumeSelect = document.getElementById("consumeFood");
 
-    const { error } = await supabaseClient
-      .from("consumptions")
-      .insert([
-        {
-          food_id: Number(foodId),
-          quantity: Number(quantity),
-          consumed_at: new Date()
-        }
-      ]);
+  purchaseSelect.innerHTML = "";
+  consumeSelect.innerHTML = "";
 
-    if (error) {
-      alert("Fehler beim Speichern");
-      console.error(error);
-    } else {
-      alert("Verbrauch gespeichert");
+  data.forEach(food => {
+    const option1 = document.createElement("option");
+    option1.value = food.id;
+    option1.textContent = food.name;
 
-      document.getElementById("consumeQuantity").value = "";
+    const option2 = option1.cloneNode(true);
 
-      loadData();
-    }
+    purchaseSelect.appendChild(option1);
+    consumeSelect.appendChild(option2);
+  });
+}
+
+/* =========================
+   INSERT FUNCTIONS
+========================= */
+
+async function addFood() {
+  const name = document.getElementById("foodName").value;
+  const amount = document.getElementById("foodAmount").value;
+  const unit = document.getElementById("foodUnit").value;
+  const category = document.getElementById("foodCategory").value;
+  const shop = document.getElementById("foodShop").value;
+
+  const { error } = await supabaseClient
+    .from("foods")
+    .insert([{
+      name,
+      amount_per_unit: Number(amount),
+      unit,
+      category: Number(category),
+      shop: Number(shop)
+    }]);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+  } else {
+    alert("Lebensmittel gespeichert");
+    loadFoods();
+  }
+}
+
+async function addPurchase() {
+  const foodId = document.getElementById("purchaseFood").value;
+  const quantity = document.getElementById("purchaseQuantity").value;
+  const price = document.getElementById("purchasePrice").value;
+  const date = document.getElementById("purchaseDate").value;
+  const selfPaid = document.getElementById("selfPaid").checked;
+
+  const { error } = await supabaseClient
+    .from("purchases")
+    .insert([{
+      food_id: Number(foodId),
+      quantity: Number(quantity),
+      price_per_unit: Number(price),
+      purchased_at: date || new Date(),
+      self_paid: selfPaid
+    }]);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+  } else {
+    alert("Einkauf gespeichert");
+    loadData();
+  }
+}
+
+async function addConsumption() {
+  const foodId = document.getElementById("consumeFood").value;
+  const quantity = document.getElementById("consumeQuantity").value;
+
+  const { error } = await supabaseClient
+    .from("consumptions")
+    .insert([{
+      food_id: Number(foodId),
+      quantity: Number(quantity),
+      consumed_at: new Date()
+    }]);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+  } else {
+    alert("Verbrauch gespeichert");
+    loadData();
+  }
+}
+
+/* =========================
+   CHART
+========================= */
+
+async function loadData() {
+  const { data, error } = await supabaseClient
+    .from("food_costs")
+    .select("food_name, total_amount")
+    .order("food_name");
+
+  if (error) {
+    console.error(error);
+    return;
   }
 
-  // 🔹 Initial laden
-  loadFoods();
-  loadData();
+  if (!data) return;
+
+  const labels = data.map(d => d.food_name);
+  const values = data.map(d => d.total_amount);
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(document.getElementById("chart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Kosten (€)",
+        data: values
+      }]
+    }
+  });
+}
+
+/* =========================
+   INITIAL LOAD
+========================= */
+
+loadCategories();
+loadShops();
+loadFoods();
+loadData();
+
 </script>
-
 </body>
 </html>
-
