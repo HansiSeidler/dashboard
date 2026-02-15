@@ -14,13 +14,24 @@ section {
   padding: 1rem;
   border: 1px solid #ddd;
   border-radius: 8px;
-  max-width: 750px;
+  max-width: 900px;
 }
 input, select, button {
   padding: 0.5rem;
   margin: 0.5rem 0.5rem 0 0;
 }
-canvas { max-width: 750px; margin-top: 2rem; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+th, td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+th { background: #f2f2f2; }
+canvas { max-width: 900px; margin-top: 2rem; }
 </style>
 </head>
 
@@ -31,40 +42,59 @@ canvas { max-width: 750px; margin-top: 2rem; }
 <!-- 🆕 FOOD -->
 <section>
 <h2>➕ Neues Lebensmittel hinzufügen</h2>
-
 <input id="foodName" placeholder="Name" />
 <input type="number" id="foodAmount" placeholder="Menge pro Einheit" />
 <input id="foodUnit" placeholder="Einheit (z.B. g, ml)" />
-
 <select id="foodCategory"></select>
 <select id="foodShop"></select>
-
 <button onclick="addFood()">Speichern</button>
 </section>
 
 <!-- 🛒 PURCHASE -->
 <section>
 <h2>🛒 Einkauf hinzufügen</h2>
-
 <select id="purchaseFood"></select>
 <input type="number" id="purchaseQuantity" placeholder="Menge" step="0.01" />
 <input type="number" id="purchasePrice" placeholder="Preis pro Einheit (€)" step="0.01" />
 <input type="date" id="purchaseDate" />
 <label>
-<input type="checkbox" id="selfPaid" checked />
-Selbst bezahlt
+<input type="checkbox" id="selfPaid" checked /> Selbst bezahlt
 </label>
-
 <button onclick="addPurchase()">Speichern</button>
+
+<h3>📋 Alle Einkäufe</h3>
+<table>
+<thead>
+<tr>
+<th>Datum</th>
+<th>Produkt</th>
+<th>Menge</th>
+<th>Preis</th>
+<th>Selbst bezahlt</th>
+</tr>
+</thead>
+<tbody id="purchaseTable"></tbody>
+</table>
 </section>
 
 <!-- ➖ CONSUMPTION -->
 <section>
 <h2>➖ Verbrauch hinzufügen</h2>
-
 <select id="consumeFood"></select>
 <input type="number" id="consumeQuantity" placeholder="Menge" step="0.01" />
 <button onclick="addConsumption()">Speichern</button>
+
+<h3>📋 Alle Verbräuche</h3>
+<table>
+<thead>
+<tr>
+<th>Datum</th>
+<th>Produkt</th>
+<th>Menge</th>
+</tr>
+</thead>
+<tbody id="consumptionTable"></tbody>
+</table>
 </section>
 
 <canvas id="chart"></canvas>
@@ -80,210 +110,158 @@ const supabaseClient = window.supabase.createClient(
 
 let chartInstance = null;
 
-/* =========================
-   LOAD FUNCTIONS
-========================= */
+/* ================= LOAD ================= */
 
 async function loadCategories() {
-  const { data, error } = await supabaseClient
-    .from("category")
-    .select("id, category")
-    .order("category");
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-    return;
-  }
-
-  if (!data) return;
-
+  const { data } = await supabaseClient.from("category").select("*").order("category");
   const select = document.getElementById("foodCategory");
   select.innerHTML = "";
-
-  data.forEach(cat => {
-    const option = document.createElement("option");
-    option.value = cat.id;
-    option.textContent = cat.category;
-    select.appendChild(option);
+  data?.forEach(c => {
+    select.innerHTML += `<option value="${c.id}">${c.category}</option>`;
   });
 }
 
 async function loadShops() {
-  const { data, error } = await supabaseClient
-    .from("shops")
-    .select("id, shop")
-    .order("shop");
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-    return;
-  }
-
-  if (!data) return;
-
+  const { data } = await supabaseClient.from("shops").select("*").order("shop");
   const select = document.getElementById("foodShop");
   select.innerHTML = "";
-
-  data.forEach(shop => {
-    const option = document.createElement("option");
-    option.value = shop.id;
-    option.textContent = shop.shop;
-    select.appendChild(option);
+  data?.forEach(s => {
+    select.innerHTML += `<option value="${s.id}">${s.shop}</option>`;
   });
 }
 
 async function loadFoods() {
-  const { data, error } = await supabaseClient
-    .from("foods")
-    .select("id, name")
-    .order("name");
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-    return;
-  }
-
-  if (!data) return;
-
-  const purchaseSelect = document.getElementById("purchaseFood");
-  const consumeSelect = document.getElementById("consumeFood");
-
-  purchaseSelect.innerHTML = "";
-  consumeSelect.innerHTML = "";
-
-  data.forEach(food => {
-    const option1 = document.createElement("option");
-    option1.value = food.id;
-    option1.textContent = food.name;
-
-    const option2 = option1.cloneNode(true);
-
-    purchaseSelect.appendChild(option1);
-    consumeSelect.appendChild(option2);
+  const { data } = await supabaseClient.from("foods").select("*").order("name");
+  const purchase = document.getElementById("purchaseFood");
+  const consume = document.getElementById("consumeFood");
+  purchase.innerHTML = "";
+  consume.innerHTML = "";
+  data?.forEach(f => {
+    purchase.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+    consume.innerHTML += `<option value="${f.id}">${f.name}</option>`;
   });
 }
 
-/* =========================
-   INSERT FUNCTIONS
-========================= */
+/* ================= INSERT ================= */
 
 async function addFood() {
-  const name = document.getElementById("foodName").value;
-  const amount = document.getElementById("foodAmount").value;
-  const unit = document.getElementById("foodUnit").value;
-  const category = document.getElementById("foodCategory").value;
-  const shop = document.getElementById("foodShop").value;
+  const name = foodName.value;
+  const amount = foodAmount.value;
+  const unit = foodUnit.value;
+  const category = foodCategory.value;
+  const shop = foodShop.value;
 
-  const { error } = await supabaseClient
-    .from("foods")
-    .insert([{
-      name,
-      amount_per_unit: Number(amount),
-      unit,
-      category: Number(category),
-      shop: Number(shop)
-    }]);
+  await supabaseClient.from("foods").insert([{
+    name,
+    amount_per_unit: Number(amount),
+    unit,
+    category: Number(category),
+    shop: Number(shop)
+  }]);
 
-  if (error) {
-    console.error(error);
-    alert(error.message);
-  } else {
-    alert("Lebensmittel gespeichert");
-    loadFoods();
-  }
+  alert("Gespeichert");
+  loadFoods();
 }
 
 async function addPurchase() {
-  const foodId = document.getElementById("purchaseFood").value;
-  const quantity = document.getElementById("purchaseQuantity").value;
-  const price = document.getElementById("purchasePrice").value;
-  const date = document.getElementById("purchaseDate").value;
-  const selfPaid = document.getElementById("selfPaid").checked;
+  await supabaseClient.from("purchases").insert([{
+    food_id: Number(purchaseFood.value),
+    quantity: Number(purchaseQuantity.value),
+    price_per_unit: Number(purchasePrice.value),
+    purchased_at: purchaseDate.value || new Date(),
+    self_paid: selfPaid.checked
+  }]);
 
-  const { error } = await supabaseClient
-    .from("purchases")
-    .insert([{
-      food_id: Number(foodId),
-      quantity: Number(quantity),
-      price_per_unit: Number(price),
-      purchased_at: date || new Date(),
-      self_paid: selfPaid
-    }]);
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-  } else {
-    alert("Einkauf gespeichert");
-    loadData();
-  }
+  alert("Einkauf gespeichert");
+  loadPurchases();
+  loadData();
 }
 
 async function addConsumption() {
-  const foodId = document.getElementById("consumeFood").value;
-  const quantity = document.getElementById("consumeQuantity").value;
+  await supabaseClient.from("consumptions").insert([{
+    food_id: Number(consumeFood.value),
+    quantity: Number(consumeQuantity.value),
+    consumed_at: new Date()
+  }]);
 
-  const { error } = await supabaseClient
-    .from("consumptions")
-    .insert([{
-      food_id: Number(foodId),
-      quantity: Number(quantity),
-      consumed_at: new Date()
-    }]);
-
-  if (error) {
-    console.error(error);
-    alert(error.message);
-  } else {
-    alert("Verbrauch gespeichert");
-    loadData();
-  }
+  alert("Verbrauch gespeichert");
+  loadConsumptions();
+  loadData();
 }
 
-/* =========================
-   CHART
-========================= */
+/* ================= TABLE LISTS ================= */
+
+async function loadPurchases() {
+  const { data } = await supabaseClient
+    .from("purchases")
+    .select("purchased_at, quantity, price_per_unit, self_paid, foods(name)")
+    .order("purchased_at", { ascending: false });
+
+  const table = document.getElementById("purchaseTable");
+  table.innerHTML = "";
+
+  data?.forEach(p => {
+    table.innerHTML += `
+      <tr>
+        <td>${p.purchased_at ? p.purchased_at.split("T")[0] : ""}</td>
+        <td>${p.foods?.name || ""}</td>
+        <td>${p.quantity}</td>
+        <td>${p.price_per_unit} €</td>
+        <td>${p.self_paid ? "Ja" : "Nein"}</td>
+      </tr>`;
+  });
+}
+
+async function loadConsumptions() {
+  const { data } = await supabaseClient
+    .from("consumptions")
+    .select("consumed_at, quantity, foods(name)")
+    .order("consumed_at", { ascending: false });
+
+  const table = document.getElementById("consumptionTable");
+  table.innerHTML = "";
+
+  data?.forEach(c => {
+    table.innerHTML += `
+      <tr>
+        <td>${c.consumed_at ? c.consumed_at.split("T")[0] : ""}</td>
+        <td>${c.foods?.name || ""}</td>
+        <td>${c.quantity}</td>
+      </tr>`;
+  });
+}
+
+/* ================= CHART ================= */
 
 async function loadData() {
-  const { data, error } = await supabaseClient
+  const { data } = await supabaseClient
     .from("food_costs")
     .select("food_name, total_amount")
     .order("food_name");
 
-  if (error) {
-    console.error(error);
-    return;
-  }
-
   if (!data) return;
-
-  const labels = data.map(d => d.food_name);
-  const values = data.map(d => d.total_amount);
 
   if (chartInstance) chartInstance.destroy();
 
   chartInstance = new Chart(document.getElementById("chart"), {
     type: "bar",
     data: {
-      labels,
+      labels: data.map(d => d.food_name),
       datasets: [{
         label: "Kosten (€)",
-        data: values
+        data: data.map(d => d.total_amount)
       }]
     }
   });
 }
 
-/* =========================
-   INITIAL LOAD
-========================= */
+/* ================= INIT ================= */
 
 loadCategories();
 loadShops();
 loadFoods();
+loadPurchases();
+loadConsumptions();
 loadData();
 
 </script>
