@@ -1,269 +1,267 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8" />
-<title>Lebensmittel – Verwaltung</title>
-
+<meta charset="UTF-8">
+<title>Lebensmittel – Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { font-family: sans-serif; padding: 2rem; }
-section {
-  margin-bottom: 2rem;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  max-width: 900px;
+body { font-family: Arial; background:#f4f6f9; padding:20px; }
+.section {
+  background:white;
+  padding:20px;
+  border-radius:10px;
+  margin-bottom:25px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
-input, select, button {
-  padding: 0.5rem;
-  margin: 0.5rem 0.5rem 0 0;
+input, select, button { padding:8px; margin:5px; }
+button {
+  background:#2f6fed;
+  color:white;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-th, td {
-  border: 1px solid #ddd;
-  padding: 0.5rem;
-  text-align: left;
-}
-th { background: #f2f2f2; }
-canvas { max-width: 900px; margin-top: 2rem; }
+button:hover { background:#1f4fc4; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { border:1px solid #ddd; padding:8px; }
 </style>
 </head>
 
 <body>
 
-<h1>📊 Lebensmittel – Verwaltung</h1>
+<h1>📊 Lebensmittel – Dashboard</h1>
 
-<!-- 🆕 FOOD -->
-<section>
-<h2>➕ Neues Lebensmittel hinzufügen</h2>
-<input id="foodName" placeholder="Name" />
-<input type="number" id="foodAmount" placeholder="Menge pro Einheit" />
-<input id="foodUnit" placeholder="Einheit (z.B. g, ml)" />
-<select id="foodCategory"></select>
-<select id="foodShop"></select>
+<!-- Suche -->
+<div class="section">
+<h3>🔎 Bestand prüfen</h3>
+<select id="searchFood"></select>
+<button onclick="checkStock()">Bestand prüfen</button>
+<p id="stockResult"></p>
+</div>
+
+<!-- Neues Lebensmittel -->
+<div class="section">
+<h3>➕ Neues Lebensmittel</h3>
+<input type="text" id="foodName" placeholder="Name">
+<input type="number" id="amountPerUnit" placeholder="Menge pro Einheit">
+<select id="unitSelect"></select>
+<select id="categorySelect"></select>
 <button onclick="addFood()">Speichern</button>
-</section>
+</div>
 
-<!-- 🛒 PURCHASE -->
-<section>
-<h2>🛒 Einkauf hinzufügen</h2>
+<!-- Einkauf -->
+<div class="section">
+<h3>🛒 Einkauf</h3>
 <select id="purchaseFood"></select>
-<input type="number" id="purchaseQuantity" placeholder="Menge" step="0.01" />
-<input type="number" id="purchasePrice" placeholder="Preis pro Einheit (€)" step="0.01" />
-<input type="date" id="purchaseDate" />
+<select id="purchaseShop"></select>
+<input type="number" id="purchaseQuantity" placeholder="Menge">
+<input type="number" id="purchasePrice" placeholder="Preis pro Einheit (€)">
+<input type="date" id="purchaseDate">
 <label>
-<input type="checkbox" id="selfPaid" checked /> Selbst bezahlt
+<input type="checkbox" id="selfPaid" checked> Selbst bezahlt
 </label>
 <button onclick="addPurchase()">Speichern</button>
+</div>
 
-<h3>📋 Alle Einkäufe</h3>
-<table>
-<thead>
-<tr>
-<th>Datum</th>
-<th>Produkt</th>
-<th>Menge</th>
-<th>Preis</th>
-<th>Selbst bezahlt</th>
-</tr>
-</thead>
-<tbody id="purchaseTable"></tbody>
-</table>
-</section>
-
-<!-- ➖ CONSUMPTION -->
-<section>
-<h2>➖ Verbrauch hinzufügen</h2>
+<!-- Verbrauch -->
+<div class="section">
+<h3>➖ Verbrauch</h3>
 <select id="consumeFood"></select>
-<input type="number" id="consumeQuantity" placeholder="Menge" step="0.01" />
+<input type="number" id="consumeQuantity" placeholder="Menge">
 <button onclick="addConsumption()">Speichern</button>
+</div>
 
+<!-- Einkäufe -->
+<div class="section">
+<h3>📋 Alle Einkäufe</h3>
+<table id="purchaseTable"></table>
+</div>
+
+<!-- Verbräuche -->
+<div class="section">
 <h3>📋 Alle Verbräuche</h3>
-<table>
-<thead>
-<tr>
-<th>Datum</th>
-<th>Produkt</th>
-<th>Menge</th>
-</tr>
-</thead>
-<tbody id="consumptionTable"></tbody>
-</table>
-</section>
-
-<canvas id="chart"></canvas>
+<table id="consumptionTable"></table>
+</div>
 
 <script>
-const SUPABASE_URL = "https://rynahngmkossspauuuzf.supabase.co";
-const SUPABASE_KEY = "sb_publishable_RABcAIZj67OoVSa53tGn_g_iklm-iCO";
 
 const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
+  "https://rynahngmkossspauuuzf.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bmFobmdta29zc3NwYXV1dXpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2NTI3NjksImV4cCI6MjA4NjIyODc2OX0.AhVlHxcT1NTzpU7QxQRjXULJPAcnDN9fmLB1ygeGbH0"
 );
 
-let chartInstance = null;
+/* ===========================
+   DROPDOWNS
+=========================== */
 
-/* ================= LOAD ================= */
+async function loadDropdowns() {
 
-async function loadCategories() {
-  const { data } = await supabaseClient.from("category").select("*").order("category");
-  const select = document.getElementById("foodCategory");
+  const { data: foods } = await supabaseClient.from("foods").select("id,name").order("name");
+  const { data: shops } = await supabaseClient.from("shops").select("id,shop").order("shop");
+  const { data: units } = await supabaseClient.from("units").select("id,unit").order("unit");
+  const { data: categories } = await supabaseClient.from("category").select("id,category").order("category");
+
+  fillSelect("searchFood", foods, "name");
+  fillSelect("purchaseFood", foods, "name");
+  fillSelect("consumeFood", foods, "name");
+
+  fillSelect("purchaseShop", shops, "shop");
+  fillSelect("unitSelect", units, "unit");
+  fillSelect("categorySelect", categories, "category");
+}
+
+function fillSelect(id, data, field) {
+  const select = document.getElementById(id);
+  if (!select || !data) return;
   select.innerHTML = "";
-  data?.forEach(c => {
-    select.innerHTML += `<option value="${c.id}">${c.category}</option>`;
+  data.forEach(item => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item[field];
+    select.appendChild(option);
   });
 }
 
-async function loadShops() {
-  const { data } = await supabaseClient.from("shops").select("*").order("shop");
-  const select = document.getElementById("foodShop");
-  select.innerHTML = "";
-  data?.forEach(s => {
-    select.innerHTML += `<option value="${s.id}">${s.shop}</option>`;
-  });
-}
-
-async function loadFoods() {
-  const { data } = await supabaseClient.from("foods").select("*").order("name");
-  const purchase = document.getElementById("purchaseFood");
-  const consume = document.getElementById("consumeFood");
-  purchase.innerHTML = "";
-  consume.innerHTML = "";
-  data?.forEach(f => {
-    purchase.innerHTML += `<option value="${f.id}">${f.name}</option>`;
-    consume.innerHTML += `<option value="${f.id}">${f.name}</option>`;
-  });
-}
-
-/* ================= INSERT ================= */
+/* ===========================
+   NEUES LEBENSMITTEL
+=========================== */
 
 async function addFood() {
-  const name = foodName.value;
-  const amount = foodAmount.value;
-  const unit = foodUnit.value;
-  const category = foodCategory.value;
-  const shop = foodShop.value;
-
   await supabaseClient.from("foods").insert([{
-    name,
-    amount_per_unit: Number(amount),
-    unit,
-    category: Number(category),
-    shop: Number(shop)
+    name: document.getElementById("foodName").value,
+    amount_per_unit: Number(document.getElementById("amountPerUnit").value),
+    unit_food: Number(document.getElementById("unitSelect").value),
+    category: Number(document.getElementById("categorySelect").value)
   }]);
-
-  alert("Gespeichert");
-  loadFoods();
+  alert("Lebensmittel gespeichert");
+  loadDropdowns();
 }
+
+/* ===========================
+   EINKAUF
+=========================== */
 
 async function addPurchase() {
   await supabaseClient.from("purchases").insert([{
-    food_id: Number(purchaseFood.value),
-    quantity: Number(purchaseQuantity.value),
-    price_per_unit: Number(purchasePrice.value),
-    purchased_at: purchaseDate.value || new Date(),
-    self_paid: selfPaid.checked
+    food_id: Number(document.getElementById("purchaseFood").value),
+    shop: Number(document.getElementById("purchaseShop").value),
+    quantity: Number(document.getElementById("purchaseQuantity").value),
+    price_per_unit: Number(document.getElementById("purchasePrice").value),
+    purchased_at: document.getElementById("purchaseDate").value,
+    self_paid: document.getElementById("selfPaid").checked
   }]);
-
   alert("Einkauf gespeichert");
   loadPurchases();
-  loadData();
 }
+
+/* ===========================
+   VERBRAUCH
+=========================== */
 
 async function addConsumption() {
   await supabaseClient.from("consumptions").insert([{
-    food_id: Number(consumeFood.value),
-    quantity: Number(consumeQuantity.value),
+    food_id: Number(document.getElementById("consumeFood").value),
+    quantity: Number(document.getElementById("consumeQuantity").value),
     consumed_at: new Date()
   }]);
-
   alert("Verbrauch gespeichert");
   loadConsumptions();
-  loadData();
 }
 
-/* ================= TABLE LISTS ================= */
+/* ===========================
+   BESTAND
+=========================== */
+
+async function checkStock() {
+
+  const foodId = Number(document.getElementById("searchFood").value);
+
+  const { data: food } = await supabaseClient
+    .from("foods")
+    .select("amount_per_unit, units(unit)")
+    .eq("id", foodId)
+    .single();
+
+  const { data: purchases } = await supabaseClient
+    .from("purchases")
+    .select("quantity")
+    .eq("food_id", foodId);
+
+  const { data: consumptions } = await supabaseClient
+    .from("consumptions")
+    .select("quantity")
+    .eq("food_id", foodId);
+
+  const bought = purchases?.reduce((s,p)=>s+Number(p.quantity),0) || 0;
+  const used = consumptions?.reduce((s,c)=>s+Number(c.quantity),0) || 0;
+
+  const remainingUnits = bought - used;
+  const exactAmount = remainingUnits * food.amount_per_unit;
+
+  document.getElementById("stockResult").innerText =
+    remainingUnits > 0
+      ? `Bestand: ${remainingUnits} Einheiten = ${exactAmount} ${food.units.unit}`
+      : "Kein Bestand";
+}
+
+/* ===========================
+   LISTEN
+=========================== */
 
 async function loadPurchases() {
+
   const { data } = await supabaseClient
     .from("purchases")
-    .select("purchased_at, quantity, price_per_unit, self_paid, foods(name)")
-    .order("purchased_at", { ascending: false });
+    .select("quantity, price_per_unit, purchased_at, foods(name), shops(shop)")
+    .order("purchased_at", { ascending:false });
 
   const table = document.getElementById("purchaseTable");
-  table.innerHTML = "";
+  table.innerHTML = "<tr><th>Lebensmittel</th><th>Shop</th><th>Menge</th><th>Preis</th><th>Datum</th></tr>";
 
-  data?.forEach(p => {
+  if (!data) return;
+
+  data.forEach(row => {
     table.innerHTML += `
       <tr>
-        <td>${p.purchased_at ? p.purchased_at.split("T")[0] : ""}</td>
-        <td>${p.foods?.name || ""}</td>
-        <td>${p.quantity}</td>
-        <td>${p.price_per_unit} €</td>
-        <td>${p.self_paid ? "Ja" : "Nein"}</td>
+        <td>${row.foods?.name || ""}</td>
+        <td>${row.shops?.shop || ""}</td>
+        <td>${row.quantity}</td>
+        <td>${row.price_per_unit}</td>
+        <td>${row.purchased_at}</td>
       </tr>`;
   });
 }
 
 async function loadConsumptions() {
+
   const { data } = await supabaseClient
     .from("consumptions")
-    .select("consumed_at, quantity, foods(name)")
-    .order("consumed_at", { ascending: false });
+    .select("quantity, consumed_at, foods(name)")
+    .order("consumed_at", { ascending:false });
 
   const table = document.getElementById("consumptionTable");
-  table.innerHTML = "";
+  table.innerHTML = "<tr><th>Lebensmittel</th><th>Menge</th><th>Datum</th></tr>";
 
-  data?.forEach(c => {
+  if (!data) return;
+
+  data.forEach(row => {
     table.innerHTML += `
       <tr>
-        <td>${c.consumed_at ? c.consumed_at.split("T")[0] : ""}</td>
-        <td>${c.foods?.name || ""}</td>
-        <td>${c.quantity}</td>
+        <td>${row.foods?.name || ""}</td>
+        <td>${row.quantity}</td>
+        <td>${row.consumed_at}</td>
       </tr>`;
   });
 }
 
-/* ================= CHART ================= */
+/* =========================== */
 
-async function loadData() {
-  const { data } = await supabaseClient
-    .from("food_costs")
-    .select("food_name, total_amount")
-    .order("food_name");
-
-  if (!data) return;
-
-  if (chartInstance) chartInstance.destroy();
-
-  chartInstance = new Chart(document.getElementById("chart"), {
-    type: "bar",
-    data: {
-      labels: data.map(d => d.food_name),
-      datasets: [{
-        label: "Kosten (€)",
-        data: data.map(d => d.total_amount)
-      }]
-    }
-  });
-}
-
-/* ================= INIT ================= */
-
-loadCategories();
-loadShops();
-loadFoods();
+loadDropdowns();
 loadPurchases();
 loadConsumptions();
-loadData();
 
 </script>
+
 </body>
 </html>
